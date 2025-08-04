@@ -1,8 +1,6 @@
 #!/bin/bash
 
 # Complete NVIDIA Suspend Fix for Ubuntu 25.04
-# Handles both logged-in users and login screen
-
 if [[ $EUID -ne 0 ]]; then
     echo "Please run as root: sudo $0"
     exit 1
