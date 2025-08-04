@@ -1,72 +1,62 @@
 # NVIDIA Suspend Fix for Ubuntu 25.04
 
-A complete solution to fix NVIDIA graphics card suspend/resume crashes on Ubuntu 25.04 with GNOME and Wayland.
+A simple solution to fix NVIDIA graphics card suspend/resume crashes on Ubuntu 25.04 with GNOME and Wayland.
 
 ## Problem
 
 NVIDIA graphics cards (especially RTX 2080 Ti and similar) crash the system when suspending on Ubuntu 25.04. The system appears to suspend but never resumes, requiring a hard reboot.
 
-**Root Cause:** GNOME Shell tries to access the NVIDIA driver after it has already been suspended, causing a kernel deadlock.
+**Root Cause:** GNOME Shell and Chrome try to access the NVIDIA driver after it has already been suspended, causing a kernel deadlock.
 
 ## Solution
 
 This script implements the proven fix from the Arch Linux community that:
 
-- Pauses GNOME Shell before system suspend
-- Resumes GNOME Shell after system resume
-- Prevents login screen suspend crashes
-- Auto-shuts down after 20 minutes at login screen
+- Pauses GNOME Shell and Chrome before system suspend
+- Resumes GNOME Shell and Chrome after system resume
+- Prevents suspend crashes with minimal complexity
 
 ## Compatibility
 
 - **Tested on:** Ubuntu 25.04 with GNOME + Wayland
 - **Graphics:** NVIDIA RTX series (RTX 2080 Ti confirmed working)
 - **Desktop:** GNOME Shell with GDM login manager
-- **Driver:** NVIDIA proprietary drivers (570+ recommended)
+- **Driver:** NVIDIA open drivers (nvidia-driver-575-open recommended)
 
 ## Quick Install
 
 ```bash
 # Download and run the fix
-curl -fsSL https://raw.githubusercontent.com/joncorv/gnome-nvidia-suspend-script/main/nvidia-suspend-fix.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/joncorv/gnome-nvidia-suspend-script/main/install.sh | sudo bash
 ```
 
 Or manually:
 
 ```bash
 # Download the script
-wget https://raw.githubusercontent.com/joncorv/nvidia-suspend-fix/main/nvidia-suspend-fix.sh
+wget https://raw.githubusercontent.com/joncorv/gnome-nvidia-suspend-script/main/install.sh
 
 # Make executable and run
-chmod +x nvidia-suspend-fix.sh
-sudo ./nvidia-suspend-fix.sh
+chmod +x install.sh
+sudo ./install.sh
 ```
 
 ## What It Does
 
-### For Logged-In Users
+### Simple Process Management
 
-- **Before suspend:** Pauses `gnome-shell` process with `SIGSTOP`
-- **After resume:** Resumes `gnome-shell` process with `SIGCONT`
+- **Before suspend:** Pauses `gnome-shell` and `chrome` processes with `SIGSTOP`
+- **After resume:** Resumes `gnome-shell` and `chrome` processes with `SIGCONT`
 - **Result:** No more suspend crashes during user sessions
-
-### For Login Screen
-
-- **Disables suspend:** Login screen never attempts to suspend
-- **Auto-shutdown:** Powers off cleanly after 20 minutes of inactivity
-- **Result:** No login screen crashes, clean power management
 
 ## Files Created
 
 The script creates these files:
 
 ```
-/usr/local/bin/suspend-gnome-shell.sh          # GNOME Shell suspend/resume handler
-/usr/local/bin/gdm-auto-shutdown.sh            # Login screen auto-shutdown
+/usr/local/bin/suspend-gnome-shell.sh          # Process suspend/resume handler
 /etc/systemd/system/gnome-shell-suspend.service # Suspend service
 /etc/systemd/system/gnome-shell-resume.service  # Resume service
-/etc/systemd/system/gdm-auto-shutdown.service   # Auto-shutdown service
-/etc/dconf/db/gdm.d/01-disable-suspend         # GDM suspend disable config
 ```
 
 ## Testing
@@ -84,22 +74,19 @@ systemctl status gnome-shell-resume.service
 
 ## Uninstall
 
-To remove the fix:
+```bash
+# Download and run uninstaller
+wget https://raw.githubusercontent.com/[YOUR-USERNAME]/nvidia-suspend-fix/main/uninstall.sh
+sudo bash uninstall.sh
+```
+
+Or manually:
 
 ```bash
-# Disable services
-sudo systemctl disable gnome-shell-suspend gnome-shell-resume gdm-auto-shutdown
-
-# Remove files
+sudo systemctl disable gnome-shell-suspend gnome-shell-resume
 sudo rm /usr/local/bin/suspend-gnome-shell.sh
-sudo rm /usr/local/bin/gdm-auto-shutdown.sh
 sudo rm /etc/systemd/system/gnome-shell-*.service
-sudo rm /etc/systemd/system/gdm-auto-shutdown.service
-sudo rm /etc/dconf/db/gdm.d/01-disable-suspend
-
-# Reload systemd
 sudo systemctl daemon-reload
-sudo dconf update
 ```
 
 ## Prerequisites
@@ -139,27 +126,27 @@ Before using this fix, ensure you have:
 - Verify services are running: `systemctl status gnome-shell-suspend`
 - Ensure GNOME Shell is running: `pgrep gnome-shell`
 
-### Login Screen Issues?
+### Chrome Not Detected?
 
-- Check auto-shutdown service: `systemctl status gdm-auto-shutdown`
-- Verify GDM config: `dconf dump /org/gnome/settings-daemon/plugins/power/`
+- The script targets the `chrome` process name
+- For Chromium: `killall -STOP chromium` (modify script if needed)
+- For other browsers: Add them to the suspend script
 
-### Want to Re-enable Login Screen Suspend?
+### Login Screen Suspend?
 
-```bash
-sudo rm /etc/dconf/db/gdm.d/01-disable-suspend
-sudo dconf update
-sudo systemctl disable gdm-auto-shutdown
-```
+This fix only works when logged in. To prevent login screen suspend:
+
+- Avoid leaving the system at login screen for extended periods
+- Or manually disable GDM suspend in system settings
 
 ## How It Works
 
 The fix works by preventing the race condition that causes NVIDIA suspend crashes:
 
 1. **Normal suspend flow:** System → NVIDIA driver → GNOME Shell → Suspend
-2. **Problem:** GNOME Shell tries to access suspended NVIDIA driver
-3. **Our fix:** System → Pause GNOME Shell → NVIDIA driver → Suspend
-4. **Resume:** Resume → NVIDIA driver → Resume GNOME Shell → System
+2. **Problem:** GNOME Shell/Chrome try to access suspended NVIDIA driver
+3. **Our fix:** System → Pause GNOME Shell & Chrome → NVIDIA driver → Suspend
+4. **Resume:** Resume → NVIDIA driver → Resume GNOME Shell & Chrome → System
 
 ## Credits
 
