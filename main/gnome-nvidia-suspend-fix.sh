@@ -14,13 +14,15 @@ echo "Installing complete NVIDIA suspend fix..."
 echo "Creating /usr/local/bin/suspend-gnome-shell.sh"
 cat >/usr/local/bin/suspend-gnome-shell.sh <<'EOF'
 #!/bin/bash
-case "$1" in
-suspend)
-    killall -STOP gnome-shell 2>/dev/null || true
-    ;;
-resume)
-    killall -CONT gnome-shell 2>/dev/null || true
-    ;;
+case "$1" in 
+        suspend) 
+            killall -STOP gnome-shell
+            killall -STOP chrome
+            ;;
+            resume)
+            killall -CONT gnome-shell
+            killall -CONT chrome
+            ;;
 esac
 EOF
 chmod +x /usr/local/bin/suspend-gnome-shell.sh
@@ -62,79 +64,24 @@ WantedBy=systemd-suspend.service
 WantedBy=systemd-hibernate.service
 EOF
 
-# 4. Create login screen auto-shutdown script
-echo "Creating /usr/local/bin/gdm-auto-shutdown.sh"
-cat >/usr/local/bin/gdm-auto-shutdown.sh <<'EOF'
-#!/bin/bash
-while true; do
-    if who | grep -q .; then
-        # Someone is logged in, wait 1 minute
-        sleep 60
-    else
-        # No one logged in, wait 20 minutes then shutdown
-        sleep 1200
-        if ! who | grep -q .; then
-            shutdown -h now
-        fi
-    fi
-done
-EOF
-chmod +x /usr/local/bin/gdm-auto-shutdown.sh
-
-# 5. Create auto-shutdown service
-echo "Creating /etc/systemd/system/gdm-auto-shutdown.service"
-cat >/etc/systemd/system/gdm-auto-shutdown.service <<'EOF'
-[Unit]
-Description=Auto shutdown at GDM login screen after 20 minutes
-After=gdm3.service
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/gdm-auto-shutdown.sh
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 6. Disable GDM suspend (prevent login screen suspend)
-echo "Configuring GDM to disable suspend..."
-mkdir -p /etc/dconf/db/gdm.d
-cat >/etc/dconf/db/gdm.d/01-disable-suspend <<'EOF'
-[org/gnome/settings-daemon/plugins/power]
-sleep-inactive-ac-timeout=0
-sleep-inactive-battery-timeout=0
-
-[org/gnome/desktop/session]
-idle-delay=uint32 1200
-EOF
-
-# Update dconf database
-dconf update
-
-# 7. Enable all services
+# 4. Enable services
 echo "Enabling services..."
 systemctl daemon-reload
 systemctl enable gnome-shell-suspend.service
 systemctl enable gnome-shell-resume.service
-systemctl enable gdm-auto-shutdown.service
 
 echo ""
 echo "✓ Installation complete!"
 echo ""
 echo "What this fix does:"
-echo "  • Pauses gnome-shell before suspend (prevents NVIDIA crash)"
-echo "  • Resumes gnome-shell after resume"
-echo "  • Disables suspend at login screen"
-echo "  • Powers off after 20 minutes at login screen with no activity"
+echo "  • Pauses gnome-shell and chrome before suspend"
+echo "  • Resumes gnome-shell and chrome after resume"
+echo "  • Prevents NVIDIA suspend crashes"
 echo ""
 echo "Test with: sudo systemctl suspend"
 echo ""
-echo "To uninstall:"
-echo "  sudo systemctl disable gnome-shell-suspend gnome-shell-resume gdm-auto-shutdown"
+echo "To uninstall, run: sudo ./uninstall.sh"
+echo "Or manually:"
+echo "  sudo systemctl disable gnome-shell-suspend gnome-shell-resume"
 echo "  sudo rm /usr/local/bin/suspend-gnome-shell.sh"
-echo "  sudo rm /usr/local/bin/gdm-auto-shutdown.sh"
 echo "  sudo rm /etc/systemd/system/gnome-shell-*.service"
-echo "  sudo rm /etc/systemd/system/gdm-auto-shutdown.service"
-echo "  sudo rm /etc/dconf/db/gdm.d/01-disable-suspend"
