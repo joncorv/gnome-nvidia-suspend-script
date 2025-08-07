@@ -16,10 +16,12 @@ case "$1" in
         suspend) 
             killall -STOP gnome-shell
             killall -STOP chrome
+            killall -STOP firefox
             ;;
             resume)
             killall -CONT gnome-shell
             killall -CONT chrome
+            killall -CONT firefox
             ;;
 esac
 EOF
